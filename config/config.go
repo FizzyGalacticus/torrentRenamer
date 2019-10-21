@@ -102,7 +102,7 @@ func saveConfig() {
 	var configLocation string
 	conf := GetConfig()
 
-	bytes, err := json.Marshal(conf)
+	bytes, err := json.MarshalIndent(conf, "", "\t")
 	if err == nil {
 		configLocation, err = getConfigLocation()
 		if err == nil {
