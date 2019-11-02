@@ -35,8 +35,10 @@ type services struct {
 }
 
 type conversion struct {
-	AutoConvert bool   `json:"autoConvert"`
-	Format      string `json:"format"`
+	AutoConvert  bool   `json:"autoConvert"`
+	Format       string `json:"format"`
+	Converter    string `json:"converter"`
+	ArgsTemplate string `json:"commandTemplate"`
 }
 
 type Config struct {
@@ -172,8 +174,10 @@ func init() {
 				Shows:  "{{ .Name }}{{sep}}{{ .Name }} - Season {{padDigit .Season 2}}{{sep}}{{ .Name }} - S{{padDigit .Season 2 }}E{{padDigit .Episode 2 }}.{{ .Ext }}",
 			},
 			Conversion: conversion{
-				AutoConvert: false,
-				Format:      "mkv",
+				AutoConvert:  false,
+				Format:       "mkv",
+				Converter:    "ffmpeg",
+				ArgsTemplate: "-i \"{{escapeSpaces .Old }}\" \"{{escapeSpaces .New }}\"",
 			},
 			RenameOverrides: make(map[string]string),
 		}
@@ -195,8 +199,10 @@ func init() {
 	showTempalte := flag.String("show-template", defaultConfig.RenameTemplates.Shows, "How you would like to rename shows")
 
 	// Conversion
-	// autoConvert := flag.BoolP("auto-convert", "a", defaultConfig.Conversion.AutoConvert, "Whether or not to attempt to auto-convert video file")
-	// convertFormat := flag.StringP("convert-format", "f", defaultConfig.Conversion.Format, "The format to which you'd like to auto-convert the video file")
+	autoConvert := flag.BoolP("auto-convert", "a", defaultConfig.Conversion.AutoConvert, "Whether or not to attempt to auto-convert video file")
+	convertFormat := flag.StringP("convert-format", "f", defaultConfig.Conversion.Format, "The format to which you'd like to auto-convert the video file")
+	convertConverter := flag.StringP("converter", "c", defaultConfig.Conversion.Converter, "The program (command) used to run the video conversion")
+	convertArgsTemplate := flag.String("convert-args", defaultConfig.Conversion.ArgsTemplate, "The Golang template for args passed to the converter")
 
 	// Rename override options
 	addOverride := flag.StringSlice("add-override", []string{}, "Add an override to parsed names")
@@ -229,10 +235,12 @@ func init() {
 			Movies: *movieTemplate,
 			Shows:  *showTempalte,
 		},
-		// Conversion: conversion{
-		// 	AutoConvert: *autoConvert,
-		// 	Format:      *convertFormat,
-		// },
+		Conversion: conversion{
+			AutoConvert:  *autoConvert,
+			Format:       *convertFormat,
+			Converter:    *convertConverter,
+			ArgsTemplate: *convertArgsTemplate,
+		},
 		RenameOverrides:     defaultConfig.RenameOverrides,
 		RenameWithoutPrompt: *rename,
 	}

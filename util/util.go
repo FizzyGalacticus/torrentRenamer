@@ -55,6 +55,10 @@ func PadDigit(digit int, length int) string {
 	return builder.String()
 }
 
+func EscapeSpaces(str string) string {
+	return strings.Join(strings.Split(str, " "), "\\ ")
+}
+
 func InsertTemplateData(templateString string, data interface{}) (string, error) {
 	var builder strings.Builder
 
@@ -72,6 +76,7 @@ func InsertTemplateData(templateString string, data interface{}) (string, error)
 
 			return JoinPaths(homeDir, path), nil
 		},
+		"escapeSpaces": EscapeSpaces,
 	}).Parse(templateString)
 	if err != nil {
 		return "", err

@@ -4,14 +4,17 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
+	"strings"
 	"torrentRenamer"
 	"torrentRenamer/config"
+	"torrentRenamer/exec"
 	"torrentRenamer/services"
 	"torrentRenamer/util"
 )
 
 func main() {
 	files := config.GetPositionalArgs()
+	config := config.GetConfig()
 
 	videos := make(map[string]torrentRenamer.Video, len(files))
 
@@ -33,7 +36,6 @@ func main() {
 	}
 
 	for src, video := range videos {
-		config := config.GetConfig()
 		serviceResults := make([]string, 0)
 		var err error
 		var dest string
@@ -64,6 +66,36 @@ func main() {
 
 			if err != nil {
 				fmt.Printf("Error moving file: %s", err.Error())
+			}
+		}
+
+		ext := filepath.Ext(dest)
+		if ext != config.Conversion.Format && config.Conversion.AutoConvert {
+			if !exec.IsCommandInPath(config.Conversion.Converter) {
+				fmt.Printf("Command \"%s\" is not in path, cannot convert", config.Conversion.Converter)
+				continue
+			}
+
+			old := dest
+			new := old[0:len(old)-len(ext)] + config.Conversion.Format
+
+			args, err := util.InsertTemplateData(config.Conversion.ArgsTemplate, struct {
+				Old string
+				New string
+			}{Old: "TR-OLD", New: "TR-NEW"})
+
+			splitArgs := strings.Split(args, " ")
+
+			for i, arg := range splitArgs {
+				if arg == "TR-OLD" {
+					splitArgs[i] = old
+				} else if arg == "TR-NEW" {
+					splitArgs[i] = new
+				}
+			}
+
+			if err == nil {
+				exec.ExecuteCommandWithSTDOutput(config.Conversion.Converter, splitArgs...)
 			}
 		}
 	}
