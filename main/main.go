@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"path"
+	"path/filepath"
 	"torrentRenamer"
 	"torrentRenamer/config"
 	"torrentRenamer/services"
@@ -22,8 +23,12 @@ func main() {
 		if err == nil {
 			ext := path.Ext(file)[1:]
 
-			videos[path.Clean(file)] = video
-			videos[path.Clean(file)].SetExt(ext)
+			src, err := filepath.Abs(path.Clean(file))
+
+			if err == nil {
+				videos[src] = video
+				videos[src].SetExt(ext)
+			}
 		}
 	}
 

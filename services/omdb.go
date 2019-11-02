@@ -60,7 +60,6 @@ func (o *OMDBService) responseToShow(r *omdbResponse) torrentRenamer.Show {
 }
 
 func (o *OMDBService) getCommonQuery() url.Values {
-	// f1767423
 	config := config.GetConfig()
 
 	query := url.Values{}
