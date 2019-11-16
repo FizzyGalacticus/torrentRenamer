@@ -27,6 +27,10 @@ type omdbResponse struct {
 
 type OMDBService struct{}
 
+func init() {
+	RegisterService(OMDBService{})
+}
+
 func (o *OMDBService) getOMDBResponse(query *url.Values) (omdbResponse, error) {
 	var ret omdbResponse
 	requestURL := o.getURLWithQuery(query)
@@ -139,7 +143,9 @@ func (o OMDBService) Name() string {
 	return "OMDB"
 }
 
-func (o OMDBService) Search(video torrentRenamer.Video) (torrentRenamer.Video, error) {
+func (o OMDBService) Search(v *torrentRenamer.Video) (torrentRenamer.Video, error) {
+	video := *v
+
 	if video.IsMovie() {
 		movie, ok := video.(*torrentRenamer.Movie)
 		if ok {
@@ -163,7 +169,7 @@ func (o OMDBService) IsAvailable() bool {
 	return config.Services.Omdb.ApiKey != ""
 }
 
-func (o OMDBService) GetNewName(video torrentRenamer.Video) (string, error) {
+func (o OMDBService) GetNewName(video *torrentRenamer.Video) (string, error) {
 	result, err := o.Search(video)
 	if err != nil {
 		return "", err
@@ -182,8 +188,6 @@ func (o OMDBService) GetNewName(video torrentRenamer.Video) (string, error) {
 	return util.InsertTemplateData(config.Services.Omdb.RenameTemplates.Shows, result)
 }
 
-func (o OMDBService) IsDefault() bool {
-	config := config.GetConfig()
-
-	return config.DefaultService == "OMDB"
+func (o OMDBService) GetServiceName() string {
+	return "OMDB"
 }

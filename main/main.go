@@ -5,6 +5,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"torrentRenamer"
 	"torrentRenamer/config"
 	"torrentRenamer/exec"
@@ -12,13 +13,8 @@ import (
 	"torrentRenamer/util"
 )
 
-func main() {
-	files := config.GetPositionalArgs()
-	config := config.GetConfig()
-
+func getParsedVideosBySource(files []string) map[string]torrentRenamer.Video {
 	videos := make(map[string]torrentRenamer.Video, len(files))
-
-	services := []services.Service{services.OMDBService{}}
 
 	for _, file := range files {
 		base := path.Base(file)
@@ -35,51 +31,52 @@ func main() {
 		}
 	}
 
-	for src, video := range videos {
-		serviceResults := make([]string, 0)
-		var err error
-		var dest string
+	return videos
+}
 
-		for _, service := range services {
-			if service.IsDefault() && service.IsAvailable() {
-				result, err := service.GetNewName(video)
-				if err == nil {
-					serviceResults = append(serviceResults, result)
-				}
-			} else {
-				fmt.Printf("Service '%s' unavailable\n", service.Name())
-			}
+func getVideoDestination(v *torrentRenamer.Video) string {
+	video := *v
+
+	var serviceResult string
+	var err error
+
+	config := config.GetConfig()
+
+	if serviceResult, err = services.GetDefaultServiceResults(v); err == nil {
+		if _, ok := video.(*torrentRenamer.Movie); ok {
+			return util.JoinPaths(config.DefaultDirectories.Movies, serviceResult)
 		}
 
-		if len(serviceResults) > 0 {
-			if _, ok := video.(*torrentRenamer.Movie); ok {
-				dest = util.JoinPaths(config.DefaultDirectories.Movies, serviceResults[0])
-			} else {
-				dest = util.JoinPaths(config.DefaultDirectories.Shows, serviceResults[0])
-			}
-		} else {
-			dest = video.GetNewPath()
-		}
+		return util.JoinPaths(config.DefaultDirectories.Shows, serviceResult)
+	}
 
-		if path.Clean(src) != path.Clean(dest) {
-			err = util.MoveFile(src, dest, !config.RenameWithoutPrompt)
+	return video.GetNewPath()
+}
 
-			if err != nil {
-				fmt.Printf("Error moving file: %s", err.Error())
-			}
-		}
+func processConversions(movedVideos []string) error {
+	config := config.GetConfig()
+	var err error
 
+	for _, dest := range movedVideos {
 		ext := filepath.Ext(dest)
-		if ext != config.Conversion.Format && config.Conversion.AutoConvert {
+		if ext != config.Conversion.Format {
+			if !config.Conversion.AutoConvert {
+				if !util.GetYesOrNo(fmt.Sprintf("Do you want to convert %s to a(n) %s?", dest, config.Conversion.Format)) {
+					break
+				}
+			}
+
 			if !exec.IsCommandInPath(config.Conversion.Converter) {
 				fmt.Printf("Command \"%s\" is not in path, cannot convert", config.Conversion.Converter)
 				continue
 			}
 
+			var args string
+
 			old := dest
 			new := old[0:len(old)-len(ext)] + config.Conversion.Format
 
-			args, err := util.InsertTemplateData(config.Conversion.ArgsTemplate, struct {
+			args, err = util.InsertTemplateData(config.Conversion.ArgsTemplate, struct {
 				Old string
 				New string
 			}{Old: "TR-OLD", New: "TR-NEW"})
@@ -95,8 +92,51 @@ func main() {
 			}
 
 			if err == nil {
-				exec.ExecuteCommandWithSTDOutput(config.Conversion.Converter, splitArgs...)
+				err = exec.ExecuteCommandWithSTDOutput(config.Conversion.Converter, splitArgs...)
 			}
 		}
+	}
+
+	return err
+}
+
+func processVideoRenaming(videos *map[string]torrentRenamer.Video) []string {
+	config := config.GetConfig()
+	var wg sync.WaitGroup
+	var lock sync.RWMutex
+
+	movedVideos := make([]string, 0)
+
+	for src, video := range *videos {
+		wg.Add(1)
+		go func(wg *sync.WaitGroup, src string, video torrentRenamer.Video) {
+			dest := getVideoDestination(&video)
+
+			if path.Clean(src) != path.Clean(dest) {
+				lock.Lock()
+				if err := util.MoveFile(src, dest, !config.RenameWithoutPrompt); err != nil {
+					fmt.Printf("Error moving file: %s", err.Error())
+					movedVideos = append(movedVideos, dest)
+				}
+				lock.Unlock()
+			}
+
+			wg.Done()
+		}(&wg, src, video)
+	}
+
+	wg.Wait()
+
+	return movedVideos
+}
+
+func main() {
+	files := config.GetPositionalArgs()
+
+	videos := getParsedVideosBySource(files)
+	movedVideos := processVideoRenaming(&videos)
+
+	if err := processConversions(movedVideos); err != nil {
+		fmt.Printf("Error converting video(s): %s", err.Error())
 	}
 }
