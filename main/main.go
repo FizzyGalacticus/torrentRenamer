@@ -53,11 +53,11 @@ func getVideoDestination(v *torrentRenamer.Video) string {
 	return video.GetNewPath()
 }
 
-func processConversions(movedVideos []string) error {
+func processConversions(possibleConversions []string) error {
 	config := config.GetConfig()
 	var err error
 
-	for _, dest := range movedVideos {
+	for _, dest := range possibleConversions {
 		ext := filepath.Ext(dest)
 		if ext != config.Conversion.Format {
 			if !config.Conversion.AutoConvert {
@@ -100,12 +100,13 @@ func processConversions(movedVideos []string) error {
 	return err
 }
 
-func processVideoRenaming(videos *map[string]torrentRenamer.Video) []string {
+func processVideoRenaming(videos *map[string]torrentRenamer.Video) ([]string, []string) {
 	config := config.GetConfig()
 	var wg sync.WaitGroup
 	var lock sync.RWMutex
 
 	movedVideos := make([]string, 0)
+	notMovedVideos := make([]string, 0)
 
 	for src, video := range *videos {
 		wg.Add(1)
@@ -117,8 +118,12 @@ func processVideoRenaming(videos *map[string]torrentRenamer.Video) []string {
 				if err := util.MoveFile(src, dest, !config.RenameWithoutPrompt); err != nil {
 					fmt.Printf("Error moving file: %s", err.Error())
 					movedVideos = append(movedVideos, dest)
+				} else {
+					notMovedVideos = append(notMovedVideos, dest)
 				}
 				lock.Unlock()
+			} else {
+				notMovedVideos = append(notMovedVideos, dest)
 			}
 
 			wg.Done()
@@ -127,16 +132,18 @@ func processVideoRenaming(videos *map[string]torrentRenamer.Video) []string {
 
 	wg.Wait()
 
-	return movedVideos
+	return movedVideos, notMovedVideos
 }
 
 func main() {
 	files := config.GetPositionalArgs()
 
 	videos := getParsedVideosBySource(files)
-	movedVideos := processVideoRenaming(&videos)
+	movedVideos, notMovedVideos := processVideoRenaming(&videos)
 
-	if err := processConversions(movedVideos); err != nil {
+	possibleConversions := util.CombineStringArrays(movedVideos, notMovedVideos)
+
+	if err := processConversions(possibleConversions); err != nil {
 		fmt.Printf("Error converting video(s): %s", err.Error())
 	}
 }

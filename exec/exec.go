@@ -85,7 +85,7 @@ func ExecuteCommandWithSTDOutputAndLog(cmdStr string, args ...interface{}) error
 
 // IsCommandInPath - Returns true if command succeeds, false otherwise
 func IsCommandInPath(cmd string, args ...string) bool {
-	_, err := ExecuteCommand(cmd, args...)
+	_, err := ExecuteCommand("/bin/sh", append([]string{"-c", fmt.Sprintf("command -v %s", cmd)}, args...)...)
 
 	return err == nil
 }

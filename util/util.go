@@ -135,3 +135,13 @@ func MoveFile(src string, dest string, prompt bool) error {
 
 	return err
 }
+
+func CombineStringArrays(arrs ...[]string) []string {
+	ret := make([]string, 0)
+
+	for _, arr := range arrs {
+		ret = append(ret, arr...)
+	}
+
+	return ret
+}
